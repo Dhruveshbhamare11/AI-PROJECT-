@@ -9,24 +9,18 @@ from prompts import SUMMARY_REQUEST_PROMPT, SYSTEM_PROMPT, WELCOME_MESSAGE_TEMPL
 
 st.set_page_config(page_title="Snap & Study", page_icon="📚")
 
-# Check required secrets
-missing_secrets = []
-for secret_key in ["GEMINI_API_KEY", "GMAIL_ADDRESS", "GMAIL_APP_PASSWORD"]:
-    if secret_key not in st.secrets:
-        missing_secrets.append(secret_key)
+# Load configuration and secrets
+GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
+GMAIL_ADDRESS = st.secrets.get("GMAIL_ADDRESS", "")
+GMAIL_APP_PASSWORD = st.secrets.get("GMAIL_APP_PASSWORD", "")
+MODEL_NAME = st.secrets.get("GEMINI_MODEL", "gemini-2.5-flash")
 
-if missing_secrets:
+if not GEMINI_API_KEY:
     st.error(
-        f"⚠️ Missing secrets in `.streamlit/secrets.toml`: {', '.join(missing_secrets)}\n\n"
-        "Please create or update `.streamlit/secrets.toml` following the template in "
-        "`.streamlit/secrets.toml.example`."
+        "⚠️ Missing `GEMINI_API_KEY` in `.streamlit/secrets.toml`.\n\n"
+        "Please provide your API key in `.streamlit/secrets.toml`."
     )
     st.stop()
-
-GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-GMAIL_ADDRESS = st.secrets["GMAIL_ADDRESS"]
-GMAIL_APP_PASSWORD = st.secrets["GMAIL_APP_PASSWORD"]
-MODEL_NAME = st.secrets.get("GEMINI_MODEL", "gemini-2.5-flash")
 
 
 @st.cache_resource
@@ -38,6 +32,8 @@ gemini_client = get_gemini_client()
 
 
 def send_email(to_address, subject, body):
+    if not GMAIL_ADDRESS or not GMAIL_APP_PASSWORD or GMAIL_ADDRESS == "your-email@gmail.com":
+        return False, "Gmail credentials not configured in secrets.toml (Email sending skipped)."
     try:
         message = MIMEText(body)
         message["Subject"] = subject
@@ -77,21 +73,19 @@ if "onboarded" not in st.session_state:
     st.title("📚 Snap & Study")
     st.caption("Snap your notes. Master the concept. Email yourself the study guide.")
     with st.form("onboarding_form"):
-        name = st.text_input("Your name")
+        name = st.text_input("Your name", placeholder="e.g. Alex")
         email_address = st.text_input(
-            "Email address",
+            "Email address (optional)",
             placeholder="you@example.com",
-            help="This is the email address Snap & Study will send your study notes to.",
+            help="Enter your email to receive study summaries, or leave blank to view in-app.",
         )
         submitted = st.form_submit_button("Let's go 🚀")
     if submitted:
-        if not name.strip() or not email_address.strip():
-            st.warning("Please fill in both your name and email address.")
-        elif "@" not in email_address or "." not in email_address:
-            st.warning("Please enter a valid email address.")
+        if not name.strip():
+            st.warning("Please fill in your name.")
         else:
             st.session_state.name = name.strip()
-            st.session_state.email_address = email_address.strip()
+            st.session_state.email_address = email_address.strip() if email_address.strip() else "user@example.com"
             st.session_state.chat = gemini_client.chats.create(
                 model=MODEL_NAME,
                 config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
@@ -120,9 +114,17 @@ with button_col:
         if success:
             st.success("Sent! Check your email inbox 📩")
         else:
-            st.error(f"Couldn't send that: {info}")
+            if "skipped" in info:
+                st.info("ℹ️ Email sending skipped: Gmail credentials are not configured in secrets.toml.")
+            else:
+                st.warning(f"⚠️ Email could not be sent: {info}")
+            with st.expander("📄 View Study Summary", expanded=True):
+                st.markdown(summary)
 
-st.caption(f"Logged in as **{st.session_state.name}** — study notes will be sent to **{st.session_state.email_address}**")
+if st.session_state.email_address and st.session_state.email_address != "user@example.com":
+    st.caption(f"Logged in as **{st.session_state.name}** — study notes will be sent to **{st.session_state.email_address}**")
+else:
+    st.caption(f"Logged in as **{st.session_state.name}**")
 
 if not st.session_state.messages:
     add_message("assistant", "text", WELCOME_MESSAGE_TEMPLATE.format(name=st.session_state.name))
