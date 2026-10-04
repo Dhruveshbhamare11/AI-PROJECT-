@@ -7,7 +7,7 @@ from google.genai import types
 
 from prompts import SUMMARY_REQUEST_PROMPT, SYSTEM_PROMPT, WELCOME_MESSAGE_TEMPLATE
 
-st.set_page_config(page_title="MacroSnap", page_icon="🥗")
+st.set_page_config(page_title="Snap & Study", page_icon="📚")
 
 # Check required secrets
 missing_secrets = []
@@ -74,14 +74,14 @@ def ask_gemini(parts):
 
 # Step 1: onboarding
 if "onboarded" not in st.session_state:
-    st.title("🥗 MacroSnap")
-    st.caption("Snap it. Track it. Email yourself the results.")
+    st.title("📚 Snap & Study")
+    st.caption("Snap your notes. Master the concept. Email yourself the study guide.")
     with st.form("onboarding_form"):
         name = st.text_input("Your name")
         email_address = st.text_input(
             "Email address",
             placeholder="you@example.com",
-            help="This is the email address MacroSnap will send your nutrition summary to.",
+            help="This is the email address Snap & Study will send your study notes to.",
         )
         submitted = st.form_submit_button("Let's go 🚀")
     if submitted:
@@ -105,16 +105,16 @@ if "onboarded" not in st.session_state:
 header_col, button_col = st.columns([5, 2], vertical_alignment="center")
 
 with header_col:
-    st.title("🥗 MacroSnap")
+    st.title("📚 Snap & Study")
 
 with button_col:
     send_disabled = len(st.session_state.messages) <= 2
     if st.button("📤 Send to Email", disabled=send_disabled, use_container_width=True):
-        with st.spinner("Summarizing your day..."):
+        with st.spinner("Compiling your study summary..."):
             summary = ask_gemini([SUMMARY_REQUEST_PROMPT])
         success, info = send_email(
             st.session_state.email_address,
-            f"🥗 Your MacroSnap Daily Nutrition Summary — {st.session_state.name}",
+            f"📚 Your Snap & Study Session Summary — {st.session_state.name}",
             summary,
         )
         if success:
@@ -122,7 +122,7 @@ with button_col:
         else:
             st.error(f"Couldn't send that: {info}")
 
-st.caption(f"Logged in as **{st.session_state.name}** — summaries will be sent to **{st.session_state.email_address}**")
+st.caption(f"Logged in as **{st.session_state.name}** — study notes will be sent to **{st.session_state.email_address}**")
 
 if not st.session_state.messages:
     add_message("assistant", "text", WELCOME_MESSAGE_TEMPLATE.format(name=st.session_state.name))
@@ -131,7 +131,7 @@ else:
         render_message(message)
 
 user_input = st.chat_input(
-    "Ask a question, or attach a photo of your meal",
+    "Ask a question, or attach a photo of a problem, notes, or diagram",
     accept_file=True,
     file_type=["jpg", "jpeg", "png"],
 )
@@ -149,8 +149,8 @@ if user_input:
         add_message("user", "text", text)
         parts.append(text)
     elif photo is not None:
-        parts.append("What is this meal? Give me the calories and macros.")
+        parts.append("Please explain this problem, page of notes, or diagram step-by-step and break down the key concepts.")
 
-    with st.spinner("Crunching the numbers..."):
+    with st.spinner("Analyzing and explaining..."):
         answer = ask_gemini(parts)
     add_message("assistant", "text", answer)
